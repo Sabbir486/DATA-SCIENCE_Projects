@@ -17,18 +17,20 @@ app.add_middleware(
 )
 
 # First PyDantic Model
+# Ranges cover the training data (e.g. Daily_Unlocks goes up to 273,
+# Physical_Activity_Hours can be 0 after clipping in the notebook).
 class StudentData(BaseModel):
-    Age                     : int = Field(..., gt=10, le=100)
+    Age                     : int = Field(..., ge=10, le=100)
     Gender                  : Literal['Male', 'Female']
     Country                 : str
     Academic_Level          : Literal['High School', 'Undergraduate', 'Graduate']
     Most_Used_Platform      : Literal['Instagram', 'Facebook', 'Twitter', 'Snapchat', 'TikTok', 'YouTube', 'Reddit','LinkedIn', 'LINE', 'WhatsApp', 'WeChat', 'KakaoTalk', 'VKontakte']
     Purpose_Of_Use          : Literal['Networking', 'Entertainment', 'Education', 'News']
-    Avg_Daily_Usage_Hours   : float = Field(..., gt=0, le=24)
-    Daily_Unlocks           : int   = Field(..., gt=0, le=100)
-    Study_Hours             : float = Field(..., gt=0, le=24)
-    Physical_Activity_Hours : float = Field(..., gt=0, le=24)
-    Sleep_Hours_Per_Night   : float = Field(..., gt=0, le=24)
+    Avg_Daily_Usage_Hours   : float = Field(..., ge=0, le=24)
+    Daily_Unlocks           : int   = Field(..., ge=0, le=1000)
+    Study_Hours             : float = Field(..., ge=0, le=24)
+    Physical_Activity_Hours : float = Field(..., ge=0, le=24)
+    Sleep_Hours_Per_Night   : float = Field(..., ge=0, le=24)
     Stress_Level            : Literal['Low', 'Medium', 'High', 'Very High']
 
 
@@ -42,13 +44,16 @@ def greet():
     return {"message": "Welcome to the Mental Health API"}
 
 
-top_countries = ['Other ', 'India', 'USA', 'Canada', 'Australia', 'UK', 'Germany', 'Mexico', 'Turkey', 'France']
+# Same top-10 list the notebook used to build 'Grouped_Country'
+top_countries = ['Other', 'India', 'USA', 'Canada', 'Australia', 'UK', 'Germany', 'Mexico', 'Turkey', 'France']
+_country_lookup = {c.lower(): c for c in top_countries}
+
 
 @app.post("/predict", response_model=PredictionResponse)
 def predict(data: StudentData):
 
-    # Group the countries
-    country_group = data.Country if data.Country in top_countries else 'Other'
+    # Group the countries (case-insensitive, e.g. "india" -> "India")
+    country_group = _country_lookup.get(data.Country.strip().lower(), 'Other')
 
     input_row = pd.DataFrame([{
         'Age': data.Age,
@@ -64,9 +69,7 @@ def predict(data: StudentData):
         'Sleep_Hours_Per_Night': data.Sleep_Hours_Per_Night,
         'Stress_Level': data.Stress_Level,
         'Grouped_Country': country_group
-    }])  
-
-
+    }])
 
     prediction = model.predict(input_row)[0]
     return PredictionResponse(prediction = round(float(prediction), 2))

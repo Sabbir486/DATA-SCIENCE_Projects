@@ -1,8 +1,12 @@
 (() => {
   "use strict";
 
-  const API_BASE = "https://mansik-santulan-score.onrender.com";
-  // const API_BASE = "http://127.0.0.1:2200 ";
+  // Local backend when the page is opened from disk or localhost,
+  // otherwise the deployed API.
+  const LOCAL_API = "http://127.0.0.1:2200";
+  const REMOTE_API = "https://mansik-santulan-score.onrender.com";
+  const isLocal = ["", "localhost", "127.0.0.1"].includes(window.location.hostname);
+  const API_BASE = isLocal ? LOCAL_API : REMOTE_API;
 
   const form = document.getElementById("predict-form");
   const submitBtn = document.getElementById("submit-btn");
@@ -98,7 +102,7 @@
     const numericChecks = [
       ["age", 10, 100],
       ["avg_daily_usage_hours", 0, 24],
-      ["daily_unlocks", 0, Infinity],
+      ["daily_unlocks", 0, 1000],
       ["study_hours", 0, 24],
       ["physical_activity_hours", 0, 24],
       ["sleep_hours_per_night", 0, 24],
@@ -110,7 +114,7 @@
       if (val === "" || val === null || Number.isNaN(val)) {
         errors.push([input, "This field is required."]);
       } else if (val < min || val > max) {
-        errors.push([input, `Must be between ${min} and ${max === Infinity ? "0+" : max}.`]);
+        errors.push([input, `Must be between ${min} and ${max}.`]);
       }
     });
 
@@ -147,6 +151,31 @@
       sleep_hours_per_night: fd.get("sleep_hours_per_night") === "" ? NaN : parseFloat(fd.get("sleep_hours_per_night")),
       stress_level: fd.get("stress_level") || "",
     };
+  }
+
+  // ---------------------------------------------------------
+  // Convert to the exact field names the FastAPI StudentData
+  // model expects (Age, Gender, Avg_Daily_Usage_Hours, ...)
+  // ---------------------------------------------------------
+  const API_FIELDS = {
+    age: "Age",
+    gender: "Gender",
+    country: "Country",
+    academic_level: "Academic_Level",
+    most_used_platform: "Most_Used_Platform",
+    purpose_of_use: "Purpose_Of_Use",
+    avg_daily_usage_hours: "Avg_Daily_Usage_Hours",
+    daily_unlocks: "Daily_Unlocks",
+    study_hours: "Study_Hours",
+    physical_activity_hours: "Physical_Activity_Hours",
+    sleep_hours_per_night: "Sleep_Hours_Per_Night",
+    stress_level: "Stress_Level",
+  };
+
+  function toApiPayload(payload) {
+    const out = {};
+    Object.entries(API_FIELDS).forEach(([key, apiKey]) => (out[apiKey] = payload[key]));
+    return out;
   }
 
   // ---------------------------------------------------------
@@ -215,7 +244,8 @@
     if (!Array.isArray(detail)) return false;
     let matched = false;
     detail.forEach((err) => {
-      const field = Array.isArray(err.loc) ? err.loc[err.loc.length - 1] : null;
+      const apiField = Array.isArray(err.loc) ? err.loc[err.loc.length - 1] : null;
+      const field = typeof apiField === "string" ? apiField.toLowerCase() : null;
       const input = field ? document.getElementById(field) : null;
       const target = field === "stress_level" ? stressHiddenInput : input;
       if (target) {
@@ -249,7 +279,7 @@
       const res = await fetch(`${API_BASE}/predict`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(toApiPayload(payload)),
       });
 
       if (res.status === 422) {
@@ -273,12 +303,12 @@
       }
 
       const data = await res.json();
-      if (typeof data.predicted_mental_health_score !== "number") {
+      if (typeof data.prediction !== "number") {
         renderError("Unexpected response", "The API responded, but the score was missing or malformed.");
         return;
       }
 
-      renderResult(data.predicted_mental_health_score);
+      renderResult(data.prediction);
     } catch (err) {
       renderError(
         "Can't reach the server",

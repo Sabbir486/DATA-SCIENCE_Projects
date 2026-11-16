@@ -1,6 +1,6 @@
-1. fastapi
-2. uvicorn
-3. pandas
-4. joblib
-5. scikit-learn
-6. pydantic
+fastapi
+uvicorn
+pandas
+joblib
+scikit-learn==1.9.0
+pydantic
