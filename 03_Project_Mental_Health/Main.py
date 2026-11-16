@@ -3,10 +3,18 @@ import pandas as pd
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 from typing import Literal
+from fastapi.middleware.cors import CORSMiddleware
 
 model = joblib.load('Mental_Health_Model.pkl')
 app = FastAPI()     # Creating an Object
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
 
 # First PyDantic Model
 class StudentData(BaseModel):
