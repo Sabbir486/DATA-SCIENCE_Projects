@@ -1,7 +1,8 @@
 import joblib
 import pandas as pd
 from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Literal
 
 model = joblib.load('Mental_Health_Model.pkl')
 app = FastAPI()     # Creating an Object
@@ -9,28 +10,37 @@ app = FastAPI()     # Creating an Object
 
 # First PyDantic Model
 class StudentData(BaseModel):
-    Age                     : int
-    Gender                  : str
+    Age                     : int = Field(..., gt=10, le=100)
+    Gender                  : Literal['Male', 'Female']
     Country                 : str
-    Academic_Level          : str
-    Most_Used_Platform      : str
-    Purpose_Of_Use          : str
-    Avg_Daily_Usage_Hours   : float
-    Daily_Unlocks           : int
-    Study_Hours             : float
-    Physical_Activity_Hours : float
-    Sleep_Hours_Per_Night   : float
-    Stress_Level            : str
-    Mental_Health_Score     : float
-    Grouped_Country         : str
+    Academic_Level          : Literal['High School', 'Undergraduate', 'Graduate']
+    Most_Used_Platform      : Literal['Instagram', 'Facebook', 'Twitter', 'Snapchat', 'TikTok', 'YouTube', 'Reddit','LinkedIn', 'LINE', 'WhatsApp', 'WeChat', 'KakaoTalk', 'VKontakte']
+    Purpose_Of_Use          : Literal['Networking', 'Entertainment', 'Education', 'News']
+    Avg_Daily_Usage_Hours   : float = Field(..., gt=0, le=24)
+    Daily_Unlocks           : int   = Field(..., gt=0, le=100)
+    Study_Hours             : float = Field(..., gt=0, le=24)
+    Physical_Activity_Hours : float = Field(..., gt=0, le=24)
+    Sleep_Hours_Per_Night   : float = Field(..., gt=0, le=24)
+    Stress_Level            : Literal['Low', 'Medium', 'High', 'Very High']
+
+
+# Describe what we send back to the user
+class PredictionResponse(BaseModel):
+    prediction: float
+
 
 @app.get("/")
-def read_root():
+def greet():
     return {"message": "Welcome to the Mental Health API"}
 
 
-@app.post("/predict")
+top_countries = ['Other ', 'India', 'USA', 'Canada', 'Australia', 'UK', 'Germany', 'Mexico', 'Turkey', 'France']
+
+@app.post("/predict", response_model=PredictionResponse)
 def predict(data: StudentData):
+
+    # Group the countries
+    country_group = data.Country if data.Country in top_countries else 'Other'
 
     input_row = pd.DataFrame([{
         'Age': data.Age,
@@ -45,6 +55,10 @@ def predict(data: StudentData):
         'Physical_Activity_Hours': data.Physical_Activity_Hours,
         'Sleep_Hours_Per_Night': data.Sleep_Hours_Per_Night,
         'Stress_Level': data.Stress_Level,
-        'Mental_Health_Score': data.Mental_Health_Score,
-        'Grouped_Country': data.Grouped_Country
+        'Grouped_Country': country_group
     }])  
+
+
+
+    prediction = model.predict(input_row)[0]
+    return PredictionResponse(prediction = round(float(prediction), 2))
